@@ -23,7 +23,7 @@ auto get_usage() {
 	return get_version() + std::string(R"(
 
 Usage:
-	aes [options]
+    aes [options]
 
 Options:
     -h, --help                     Pring this message
