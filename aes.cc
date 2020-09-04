@@ -1,8 +1,6 @@
 #include <docopt/docopt.h>
 #include <docopt/docopt_value.h>
-#include <fcntl.h>
 #include <gcrypt.h>
-#include <termios.h>
 #include <unistd.h>
 #include <cstring>
 #include <fstream>
