@@ -21,16 +21,19 @@ auto get_usage() {
 	return get_version() + std::string(R"(
 
 Usage:
-    aes [options]
+    aes [options] [--password=PASS]
+    aes [options] [--key=KEY]
+    aes [options] -d [--last=LAST] [--password=PASS]
+    aes [options] -d [--last=LAST] [--key=KEY]
 
 Options:
-    -h, --help                     Pring this message
+    -h, --help                     Print this message
     -v, --version                  Print version and exit
     -d, --decrypt                  Decrypt data
     -i, --input=FILE               Set input file [default: /dev/stdin]
     -o, --output=FILE              Set output file [default: /dev/stdout]
-    -p, --password=PASSWORD        Use password [default: prompt]
-    -k, --key=KEY                  Use key instead password [default: ]
+    -p, --password=PASSWORD        Using password
+    -k, --key=KEY                  Using key
     -l, --last=LAST                Size of last block [default: 0]
     -b, --bits=BITS                Use aes with specified bits [default: 256]
 )");
@@ -61,14 +64,15 @@ int main(int argc, const char** argv) {
 							   get_version());
 
 	auto decrypt = args.at("--decrypt").asBool();
-	auto password = args.at("--password").asString();
-	auto key = args.at("--key").asString();
+	auto password = args.at("--password");
+	auto key = args.at("--key");
 	auto bits = args.at("--bits").asLong();
 	auto last = args.at("--last").asLong();
 	auto input = args.at("--input").asString();
 	auto output = args.at("--output").asString();
+
 	try {
-		if (password != "prompt" && key != "") {
+		if (password && key) {
 			throw std::invalid_argument(
 				"using --password and --key at some time is imposible.");
 		}
@@ -81,8 +85,10 @@ int main(int argc, const char** argv) {
 			throw std::invalid_argument("--bits should be 128 or 256.");
 		}
 
-		if (key.size() != 0 && key.size() != (bits >> 1)) {
-			throw std::invalid_argument("--key size should be equal BITS/2");
+		if (key && key.asString().size() != (bits >> 1)) {
+			throw std::invalid_argument(
+				"--key size should be equal 32 or 64 bytes (at 128 or 256 "
+				"bits).");
 		}
 
 		if (decrypt == false && last != 0) {
@@ -108,26 +114,30 @@ int main(int argc, const char** argv) {
 	size_t key_size = bits >> 2;
 	std::unique_ptr<char[]> key_arr(new char[key_size]);
 
-	if (key == "") {
-		if (password == "prompt") {
-			password = getpass("Enter password:");
+	if (!key) {
+		std::string password_str;
+		if (!password) {
+			password_str = getpass("Enter password: ");
+		} else {
+			password_str = password.asString();
 		}
 		gcry_md_hd_t md_handle;
 		try_gcry(gcry_md_open(&md_handle, GCRY_MD_SHA512, 0));
 
-		gcry_md_write(md_handle, password.data(), password.size());
+		gcry_md_write(md_handle, password_str.data(), password_str.size());
 
 		std::memcpy(key_arr.get(), gcry_md_read(md_handle, GCRY_MD_SHA512),
 					key_size);
 
 		gcry_md_close(md_handle);
 	} else {
+		auto key_str = key.asString();
 		try {
 			for (size_t i = 0; i < key_size; ++i) {
 				char buf[3]{0, 0, 0};
 
-				buf[0] = key[(i << 1) + 0];
-				buf[1] = key[(i << 1) + 1];
+				buf[0] = key_str[(i << 1) + 0];
+				buf[1] = key_str[(i << 1) + 1];
 				buf[2] = 0;
 
 				key_arr[i] = std::strtol(buf, nullptr, 16);
